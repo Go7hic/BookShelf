@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { workingVolumes } from "../data/workingVolumes";
+import { workingShelves } from "../data/workingVolumes";
 
 const OPENING_ENVIRONMENT_CLEAR_PROGRESS = 0.24;
 const CLOSING_ENVIRONMENT_REVEAL_PROGRESS = 0.72;
@@ -18,13 +18,6 @@ const easeInOut = (value) => {
   const safe = clamp(value, 0, 1);
   return safe < 0.5 ? 8 * safe ** 4 : 1 - Math.pow(-2 * safe + 2, 4) / 2;
 };
-
-function getLevelSizes(bookCount, requestedLevels) {
-  const levels = clamp(Math.trunc(requestedLevels || 1), 1, Math.min(bookCount, 6));
-  const base = Math.floor(bookCount / levels);
-  const remainder = bookCount % levels;
-  return Array.from({ length: levels }, (_, index) => base + (index < remainder ? 1 : 0));
-}
 
 function getLevelStart(levelSizes, level) {
   return levelSizes.slice(0, level).reduce((sum, size) => sum + size, 0);
@@ -257,8 +250,12 @@ function disposeObject(object) {
 }
 
 export function createBookShelfRuntime(experience, options = {}) {
-  const books = options.books?.length ? [...options.books] : [...workingVolumes];
-  const levelSizes = getLevelSizes(books.length, options.shelfLevels);
+  const shelves = options.shelves
+    ?.filter((shelf) => shelf.length > 0)
+    .map((shelf) => [...shelf]);
+  const resolvedShelves = shelves?.length ? shelves : workingShelves;
+  const catalog = resolvedShelves.flat();
+  const levelSizes = resolvedShelves.map((shelf) => shelf.length);
   const sceneCanvas = experience.querySelector('[data-shelf="scene"]');
   const paletteLabel = experience.querySelector('[data-shelf="palette-label"]');
   const levelCounter = experience.querySelector('[data-shelf="level-counter"]');
@@ -309,7 +306,7 @@ export function createBookShelfRuntime(experience, options = {}) {
   let mode = "browse";
   let readingOpen = false;
   let pageIndex = 0;
-  let currentIndex = clamp(Math.trunc(options.initialIndex || 0), 0, books.length - 1);
+  let currentIndex = clamp(Math.trunc(options.initialIndex || 0), 0, catalog.length - 1);
   let currentLevel = getBookLevel(levelSizes, currentIndex);
   let hoverIndex = -1;
   let pointerDown = null;
@@ -342,15 +339,15 @@ export function createBookShelfRuntime(experience, options = {}) {
     const environment = new THREE.Group();
     const shelfGroup = new THREE.Group();
     const detailGroup = new THREE.Group();
-    const volumes = books.map(createVolume);
+    const volumes = catalog.map(createVolume);
     const hitMeshes = volumes.map((volume) => volume.hit);
     hitMeshes.forEach((mesh, index) => { mesh.userData.volumeIndex = index; });
     scene.add(environment, detailGroup);
     environment.add(shelfGroup);
 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: books[currentIndex].palette.wall, roughness: 0.94 });
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: books[currentIndex].palette.shelfDark, roughness: 0.85, metalness: 0.06 });
-    const shelfMaterial = new THREE.MeshStandardMaterial({ color: books[currentIndex].palette.shelf, roughness: 0.58, metalness: 0.12 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: catalog[currentIndex].palette.wall, roughness: 0.94 });
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: catalog[currentIndex].palette.shelfDark, roughness: 0.85, metalness: 0.06 });
+    const shelfMaterial = new THREE.MeshStandardMaterial({ color: catalog[currentIndex].palette.shelf, roughness: 0.58, metalness: 0.12 });
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(24, 14), wallMaterial);
     wall.position.set(0, 2.4, -2.1);
     environment.add(wall);
@@ -365,10 +362,10 @@ export function createBookShelfRuntime(experience, options = {}) {
     lowerShelf.position.set(0, -1.18, -0.1);
     environment.add(lowerShelf);
 
-    const ambient = new THREE.HemisphereLight(books[currentIndex].palette.light, books[currentIndex].palette.shelfDark, 2.2);
-    const key = new THREE.DirectionalLight(books[currentIndex].palette.light, 3.4);
+    const ambient = new THREE.HemisphereLight(catalog[currentIndex].palette.light, catalog[currentIndex].palette.shelfDark, 2.2);
+    const key = new THREE.DirectionalLight(catalog[currentIndex].palette.light, 3.4);
     key.position.set(-3.8, 5.2, 5.4);
-    const rim = new THREE.PointLight(books[currentIndex].foil, 18, 12, 2);
+    const rim = new THREE.PointLight(catalog[currentIndex].foil, 18, 12, 2);
     rim.position.set(3.4, 2.8, 3.2);
     scene.add(ambient, key, rim);
     volumes.forEach((volume) => shelfGroup.add(volume.root));
@@ -379,7 +376,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     const signal = abort.signal;
 
     function currentBook() {
-      return books[currentIndex];
+      return catalog[currentIndex];
     }
 
     function currentVolume() {
@@ -451,7 +448,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       markers.replaceChildren();
       for (let column = 0; column < count; column += 1) {
         const index = start + column;
-        const book = books[index];
+        const book = catalog[index];
         const button = document.createElement("button");
         button.type = "button";
         button.className = "marker";
@@ -604,7 +601,7 @@ export function createBookShelfRuntime(experience, options = {}) {
 
     function select(index, { animateLevel = true } = {}) {
       if (mode !== "browse") return;
-      const safe = clamp(Math.trunc(index), 0, books.length - 1);
+      const safe = clamp(Math.trunc(index), 0, catalog.length - 1);
       const nextLevel = getBookLevel(levelSizes, safe);
       const previousLevel = currentLevel;
       currentIndex = safe;
@@ -759,7 +756,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         pointerLabel.setAttribute("aria-hidden", String(index < 0));
       }
       if (index >= 0) {
-        const book = books[index];
+        const book = catalog[index];
         updateText(pointerLabelIndex, `Volume ${String(index + 1).padStart(2, "0")}`);
         updateText(pointerLabelTitle, book.title);
       } else {

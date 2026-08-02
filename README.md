@@ -15,25 +15,23 @@ npm run dev
 ## Basic usage
 
 ```tsx
-import { BookShelf } from "bookshelf-react";
+import { BookShelf, workingShelves } from "bookshelf-react";
 import "bookshelf-react/style.css";
 
 export function Library() {
   return (
-    <BookShelf
-      title="Working Volumes"
-      shelfLevels={2}
-      style={{ height: "720px" }}
-    />
+    <BookShelf shelves={workingShelves} style={{ height: "720px" }} />
   );
 }
 ```
 
-If `books` is omitted, the component uses the bundled `workingVolumes` data.
+`shelves` is the only collection input. It is a nested array: each outer item
+is one shelf, and the books inside it are displayed from left to right. When it
+is omitted (or contains no books), the component uses bundled `workingShelves`.
 
 Each screen shows one horizontal carousel row. Wheel and vertical arrow input
-move to the next shelf level. Set `shelfLevels={1}` to disable the vertical
-level carousel and keep a single row.
+move between the explicit shelf arrays; left/right input only changes the book
+inside the current shelf.
 
 `bookshelf-react` is the intended package name; the public component export is
 `BookShelf`.
@@ -42,8 +40,7 @@ level carousel and keep a single row.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `books` | `readonly BookShelfBook[]` | `workingVolumes` | Custom book collection. An empty array also falls back to the bundled collection. |
-| `shelfLevels` | `number` | `1` | Number of horizontal shelf levels. Values above `1` arrange the collection across multiple levels. The value is normalized to an integer from `1` through `min(6, books.length)`. |
+| `shelves` | `BookShelfShelves` | `workingShelves` | Explicit shelf data. Every outer array is a shelf; each inner array controls that shelf’s left-to-right books. Empty shelves are ignored. |
 | `className` | `string` | — | Class name added to the root element. |
 | `style` | `React.CSSProperties` | — | Inline styles added to the root element. Use this to define the component height. |
 | `title` | `string` | — | Root title and fallback accessible name. |
@@ -55,15 +52,11 @@ level carousel and keep a single row.
 | `onReadingChange` | `(open: boolean) => void` | — | Called when the current book opens or closes. |
 | `onError` | `(message: string) => void` | — | Called when WebGL is unavailable, initialization fails, or the context is lost. The readable static catalog remains available as a fallback. |
 
-With `shelfLevels={1}`, the original horizontal carousel is preserved. With more
-than one level, the viewport focuses one row at a time. Wheel and vertical arrow
-input moves between rows, while navigation still follows the flat zero-based
-`books` order.
+The component never auto-distributes books between levels. Use one nested array
+for a single horizontal shelf, or add more arrays for more shelves. Keep the
+`shelves` reference stable with `useMemo` when it is generated dynamically.
 
-When generating `books` dynamically, use `useMemo` to keep the array reference
-stable. This prevents a parent render from rebuilding the 3D scene.
-
-## Custom books
+## Custom shelves
 
 ```tsx
 import { useMemo, useRef } from "react";
@@ -71,24 +64,26 @@ import {
   BookShelf,
   type BookShelfBook,
   type BookShelfHandle,
-  workingVolumes,
+  workingShelves,
 } from "bookshelf-react";
 
 export function CustomLibrary() {
   const shelf = useRef<BookShelfHandle>(null);
-  const books = useMemo<readonly BookShelfBook[]>(
-    () => workingVolumes.map((book, index) =>
-      index === 0
-        ? { ...book, title: "Studio Codex", note: "A custom React-provided volume." }
-        : book,
-    ),
+  const shelves = useMemo<readonly (readonly BookShelfBook[])[]>(
+    () => [
+      [
+        { ...workingShelves[0][0], title: "Studio Codex", note: "First book on shelf one." },
+        workingShelves[0][1],
+      ],
+      [workingShelves[1][0], workingShelves[1][1], workingShelves[1][2]],
+    ],
     [],
   );
 
   return (
     <BookShelf
       ref={shelf}
-      books={books}
+      shelves={shelves}
       initialIndex={2}
       style={{ height: "720px" }}
       onSelectionChange={({ index, title, book }) => {
@@ -100,7 +95,8 @@ export function CustomLibrary() {
 }
 ```
 
-`BookShelfBook` is the complete book data contract:
+`BookShelfShelves` is `readonly (readonly BookShelfBook[])[]`. `BookShelfBook`
+is the complete book data contract:
 
 ```ts
 interface BookShelfBook {

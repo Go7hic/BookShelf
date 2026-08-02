@@ -26,6 +26,11 @@ assert.match(runtime, /makeCoverTexture/);
 assert.match(runtime, /drawMotif/);
 assert.match(runtime, /ResizeObserver/);
 assert.match(component, /export const BookShelf/);
+assert.match(component, /shelves: resolvedShelves/);
+assert.doesNotMatch(component, /shelfLevels/);
+assert.doesNotMatch(component, /\bbooks\s*[:?]/);
+assert.match(runtime, /const resolvedShelves/);
+assert.doesNotMatch(runtime, /getLevelSizes/);
 
 const runtimeRoles = new Set(
   [...runtime.matchAll(/querySelector\('\[data-shelf="([^"]+)"\]'\)/g)].map((match) => match[1]),

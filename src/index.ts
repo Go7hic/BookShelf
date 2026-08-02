@@ -5,6 +5,7 @@ export {
   type BookShelfMotifKey,
   type BookShelfPalette,
   type BookShelfProps,
+  type BookShelfShelves,
   type BookShelfSelection,
 } from "./components/BookShelf";
-export { workingVolumes } from "./data/workingVolumes";
+export { workingShelves } from "./data/workingVolumes";

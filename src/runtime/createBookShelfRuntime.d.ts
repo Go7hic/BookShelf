@@ -1,11 +1,7 @@
-import type {
-  BookShelfBook,
-  BookShelfSelection,
-} from "../components/BookShelf.types";
+import type { BookShelfShelves, BookShelfSelection } from "../components/BookShelf.types";
 
 export interface BookShelfRuntimeOptions {
-  readonly books?: readonly BookShelfBook[];
-  readonly shelfLevels?: number;
+  readonly shelves?: BookShelfShelves;
   readonly initialIndex?: number;
   readonly onReady?: () => void;
   readonly onSelectionChange?: (selection: BookShelfSelection) => void;

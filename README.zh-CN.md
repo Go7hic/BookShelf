@@ -14,24 +14,19 @@ npm run dev
 ## 基础用法
 
 ```tsx
-import { BookShelf } from "bookshelf-react";
+import { BookShelf, workingShelves } from "bookshelf-react";
 import "bookshelf-react/style.css";
 
 export function Library() {
   return (
-    <BookShelf
-      title="Working Volumes"
-      shelfLevels={2}
-      style={{ height: "720px" }}
-    />
+    <BookShelf shelves={workingShelves} style={{ height: "720px" }} />
   );
 }
 ```
 
-不传 `books` 时，组件会使用内置的 `workingVolumes` 数据。
+`shelves` 是唯一的书目输入。它是嵌套数组：外层每一项代表一层书架，内层数组按从左到右的顺序放置该层书籍。未传入（或全部为空）时，组件会使用内置的 `workingShelves`。
 
-每一屏只显示一层横向轮播，滚轮和上下方向键可以切换到上一层或下一层。
-传入 `shelfLevels={1}` 时会关闭垂直层板轮播，只保留单层横向效果。
+每一屏只显示一层横向轮播，滚轮和上下方向键在明确配置的层之间切换；左右操作只会切换当前层中的书。
 
 计划发布的 npm 包名为 `bookshelf-react`，公开导出的组件名是 `BookShelf`。
 
@@ -39,8 +34,7 @@ export function Library() {
 
 | 属性 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `books` | `readonly BookShelfBook[]` | `workingVolumes` | 自定义书目列表；传空数组时也会回退到内置书目。 |
-| `shelfLevels` | `number` | `1` | 横向层板数量。大于 `1` 时会把书目分布到多个层板上，最终会限制为 `1` 到 `min(6, books.length)` 的整数。 |
+| `shelves` | `BookShelfShelves` | `workingShelves` | 明确的分层书目数据。每个外层数组是一层书架，内层数组决定该层从左到右的书籍。空层会被忽略。 |
 | `className` | `string` | — | 添加到组件根节点的 class。 |
 | `style` | `React.CSSProperties` | — | 添加到组件根节点的内联样式，通常用于设置高度。 |
 | `title` | `string` | — | 组件标题，同时会作为无障碍标签的备用值。 |
@@ -52,12 +46,9 @@ export function Library() {
 | `onReadingChange` | `(open: boolean) => void` | — | 当前书籍打开或关闭时调用。 |
 | `onError` | `(message: string) => void` | — | WebGL 不可用、初始化失败或上下文丢失时调用；组件会保留静态目录作为 fallback。 |
 
-`shelfLevels={1}` 时保留原来的横向轮播；大于 `1` 时，视口会聚焦当前层，
-滚轮和上下方向键可以切换层板，导航仍然按照 `books` 数组的扁平索引顺序工作。
+组件不会再自动把扁平书目拆分到各层：只需要一个内层数组就是单层横向书架；增加外层数组即可增加层数。动态生成 `shelves` 时，建议用 `useMemo` 保持数组引用稳定，避免父组件每次渲染都重建 3D 场景。
 
-动态生成 `books` 时，建议使用 `useMemo` 保持数组引用稳定，避免父组件每次渲染都重建 3D 场景。
-
-## 自定义书目
+## 自定义书架
 
 ```tsx
 import { useMemo, useRef } from "react";
@@ -65,24 +56,26 @@ import {
   BookShelf,
   type BookShelfBook,
   type BookShelfHandle,
-  workingVolumes,
+  workingShelves,
 } from "bookshelf-react";
 
 export function CustomLibrary() {
   const shelf = useRef<BookShelfHandle>(null);
-  const books = useMemo<readonly BookShelfBook[]>(
-    () => workingVolumes.map((book, index) =>
-      index === 0
-        ? { ...book, title: "Studio Codex", note: "A custom React-provided volume." }
-        : book,
-    ),
+  const shelves = useMemo<readonly (readonly BookShelfBook[])[]>(
+    () => [
+      [
+        { ...workingShelves[0][0], title: "Studio Codex", note: "第一层的第一本书。" },
+        workingShelves[0][1],
+      ],
+      [workingShelves[1][0], workingShelves[1][1], workingShelves[1][2]],
+    ],
     [],
   );
 
   return (
     <BookShelf
       ref={shelf}
-      books={books}
+      shelves={shelves}
       initialIndex={2}
       style={{ height: "720px" }}
       onSelectionChange={({ index, title, book }) => {
@@ -94,7 +87,7 @@ export function CustomLibrary() {
 }
 ```
 
-`BookShelfBook` 是完整的书目数据契约，包含以下字段：
+`BookShelfShelves` 的类型为 `readonly (readonly BookShelfBook[])[]`。`BookShelfBook` 是完整的书目数据契约，包含以下字段：
 
 ```ts
 interface BookShelfBook {

@@ -1,6 +1,7 @@
 import type { BookShelfBook } from "../components/BookShelf.types";
 
-export const workingVolumes = [
+export const workingShelves = [
+  [
       {
         id: "codex",
         title: "Codex",
@@ -133,6 +134,8 @@ export const workingVolumes = [
         chapters: ["System map", "Tool orbit", "Spatial proof"],
         seed: 44
       },
+  ],
+  [
       {
         id: "figma",
         title: "Figma",
@@ -232,4 +235,5 @@ export const workingVolumes = [
         chapters: ["Blueprint", "Build", "Runtime"],
         seed: 77
       }
-    ] as const satisfies readonly BookShelfBook[];
+  ],
+] as const satisfies readonly (readonly BookShelfBook[])[];

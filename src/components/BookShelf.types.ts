@@ -45,6 +45,9 @@ export interface BookShelfBook {
   readonly seed: number;
 }
 
+/** Each outer item is one shelf; books retain their left-to-right order inside it. */
+export type BookShelfShelves = readonly (readonly BookShelfBook[])[];
+
 export interface BookShelfSelection {
   readonly index: number;
   readonly id: string;
@@ -65,8 +68,7 @@ export interface BookShelfHandle {
 }
 
 export interface BookShelfProps {
-  readonly books?: readonly BookShelfBook[];
-  readonly shelfLevels?: number;
+  readonly shelves?: BookShelfShelves;
   readonly className?: string;
   readonly style?: CSSProperties;
   readonly title?: string;

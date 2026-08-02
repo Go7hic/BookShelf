@@ -3,16 +3,18 @@ import {
   useEffect,
   useId,
   useImperativeHandle,
+  useMemo,
   useRef,
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import { workingVolumes } from "../data/workingVolumes";
+import { workingShelves } from "../data/workingVolumes";
 import { createBookShelfRuntime, type BookShelfRuntimeController } from "../runtime/createBookShelfRuntime";
 import type {
   BookShelfBook,
   BookShelfHandle,
   BookShelfProps,
+  BookShelfShelves,
   BookShelfSelection,
 } from "./BookShelf.types";
 import "./BookShelf.css";
@@ -34,8 +36,7 @@ function getFallbackBookStyle(book: BookShelfBook): FallbackBookStyle {
 export const BookShelf = forwardRef<BookShelfHandle, BookShelfProps>(
   function BookShelf(
     {
-      books = workingVolumes,
-      shelfLevels,
+      shelves,
       className,
       style,
       title,
@@ -51,7 +52,11 @@ export const BookShelf = forwardRef<BookShelfHandle, BookShelfProps>(
   ) {
     const rootRef = useRef<HTMLElement>(null);
     const controllerRef = useRef<BookShelfRuntimeController | null>(null);
-    const resolvedBooks = books.length > 0 ? books : workingVolumes;
+    const resolvedShelves = useMemo<readonly (readonly BookShelfBook[])[]>(() => {
+      const configured = shelves?.filter((shelf) => shelf.length > 0);
+      return configured?.length ? configured : workingShelves;
+    }, [shelves]);
+    const resolvedBooks = useMemo(() => resolvedShelves.flat(), [resolvedShelves]);
     const firstIndex = Math.min(Math.max(Math.trunc(initialIndex), 0), resolvedBooks.length - 1);
     const firstBook = resolvedBooks[firstIndex];
     const id = useId();
@@ -95,8 +100,7 @@ export const BookShelf = forwardRef<BookShelfHandle, BookShelfProps>(
       let active = true;
 
       const controller = createBookShelfRuntime(root, {
-        books: resolvedBooks,
-        shelfLevels,
+        shelves: resolvedShelves,
         initialIndex,
         onReady: () => active && callbacksRef.current.onReady?.(),
         onSelectionChange: (selection) => active && callbacksRef.current.onSelectionChange?.(selection),
@@ -112,7 +116,7 @@ export const BookShelf = forwardRef<BookShelfHandle, BookShelfProps>(
         controller.destroy();
         if (controllerRef.current === controller) controllerRef.current = null;
       };
-    }, [initialIndex, resolvedBooks, shelfLevels]);
+    }, [initialIndex, resolvedBooks, resolvedShelves]);
 
     const rootClassName = ["complete-shelf", "experience", className]
       .filter(Boolean)
@@ -270,5 +274,6 @@ export type {
   BookShelfMotifKey,
   BookShelfPalette,
   BookShelfProps,
+  BookShelfShelves,
   BookShelfSelection,
 } from "./BookShelf.types";
