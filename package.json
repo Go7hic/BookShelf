@@ -21,6 +21,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json",
+    "build:demo": "vite build --mode demo",
     "typecheck": "tsc --noEmit",
     "verify:component-contract": "node scripts/verify-component-contract.mjs"
   },
