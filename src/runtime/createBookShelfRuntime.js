@@ -58,7 +58,7 @@ function setInert(element, value) {
   else element.removeAttribute("inert");
 }
 
-function makeCoverTexture(book) {
+function makeCoverTexture(book, onArtworkLoad) {
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
   canvas.height = 1536;
@@ -100,6 +100,7 @@ function makeCoverTexture(book) {
       context.drawImage(artwork, 0, 0, width, height);
       drawCoverTypography(context, book, width, height);
       texture.needsUpdate = true;
+      onArtworkLoad?.();
     };
     artwork.src = artworkUrl;
   }
@@ -215,14 +216,14 @@ function drawMotif(context, book, centerX, centerY) {
   context.restore();
 }
 
-function createVolume(book) {
+function createVolume(book, onArtworkLoad) {
   const root = new THREE.Group();
   root.name = `BookShelf volume ${book.id}`;
   const width = book.width * 0.9;
   const height = book.height * 1.42;
   const depth = book.depth * 1.85;
   const materials = [];
-  const coverTexture = makeCoverTexture(book);
+  const coverTexture = makeCoverTexture(book, onArtworkLoad);
   const cloth = new THREE.MeshStandardMaterial({ color: book.color, roughness: 0.72, metalness: 0.03, transparent: true });
   const page = new THREE.MeshStandardMaterial({ color: book.palette.paperPale, roughness: 0.92, transparent: true });
   const foil = new THREE.MeshStandardMaterial({ color: book.foil, roughness: 0.31, metalness: 0.58, transparent: true });
@@ -383,7 +384,10 @@ export function createBookShelfRuntime(experience, options = {}) {
     const environment = new THREE.Group();
     const shelfGroup = new THREE.Group();
     const detailGroup = new THREE.Group();
-    const volumes = catalog.map(createVolume);
+    // CanvasTexture updates are not visible until the next Three.js frame.
+    // Request one when an imported cover image finishes decoding; browse mode
+    // otherwise intentionally renders only while it has motion to animate.
+    const volumes = catalog.map((book) => createVolume(book, requestRender));
     const hitMeshes = volumes.map((volume) => volume.hit);
     hitMeshes.forEach((mesh, index) => { mesh.userData.volumeIndex = index; });
     scene.add(environment, detailGroup);
