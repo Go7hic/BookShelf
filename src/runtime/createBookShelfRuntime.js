@@ -1,5 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import codexCover from "../assets/covers/codex.png";
+import claudeCodeCover from "../assets/covers/claude-code.png";
+import cursorCover from "../assets/covers/cursor.png";
+import antigravityCover from "../assets/covers/antigravity.png";
+import figmaCover from "../assets/covers/figma.png";
+import framerCover from "../assets/covers/framer.png";
+import xcodeCover from "../assets/covers/xcode.png";
 import { workingShelves } from "../data/workingVolumes";
 
 const OPENING_ENVIRONMENT_CLEAR_PROGRESS = 0.24;
@@ -8,6 +15,15 @@ const OPEN_DURATION = 740;
 const CLOSE_DURATION = 680;
 const LEVEL_DURATION = 460;
 const TAU = Math.PI * 2;
+const coverArtwork = {
+  codex: codexCover,
+  "claude-code": claudeCodeCover,
+  cursor: cursorCover,
+  antigravity: antigravityCover,
+  figma: figmaCover,
+  framer: framerCover,
+  xcode: xcodeCover,
+};
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const mod = (value, length) => ((value % length) + length) % length;
@@ -44,52 +60,80 @@ function setInert(element, value) {
 
 function makeCoverTexture(book) {
   const canvas = document.createElement("canvas");
-  canvas.width = 720;
-  canvas.height = 1040;
+  canvas.width = 1024;
+  canvas.height = 1536;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("BookShelf could not create a cover canvas.");
 
   const { width, height } = canvas;
-  const gradient = context.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, book.color);
-  gradient.addColorStop(1, book.palette.paperDeep);
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
-
-  context.globalAlpha = 0.18;
-  context.strokeStyle = book.palette.paperPale;
-  context.lineWidth = 1;
-  for (let y = 22; y < height; y += 18) {
-    context.beginPath();
-    context.moveTo(0, y + ((book.seed * 7) % 13));
-    context.lineTo(width, y);
-    context.stroke();
-  }
-  context.globalAlpha = 1;
-
-  context.fillStyle = book.foil;
-  context.font = "600 18px ui-monospace, SFMono-Regular, Menlo, monospace";
-  context.letterSpacing = "3px";
-  context.fillText(`VOLUME ${book.roman}`, 58, 68);
-  context.font = "500 18px ui-monospace, SFMono-Regular, Menlo, monospace";
-  context.fillText(book.discipline.toUpperCase(), 58, 98);
-
-  drawMotif(context, book, width / 2, 495);
-
-  context.fillStyle = book.palette.paperPale;
-  context.font = "500 68px Georgia, Times New Roman, serif";
-  context.textAlign = "center";
-  const title = book.title.length > 13 ? 52 : 68;
-  context.font = `500 ${title}px Georgia, Times New Roman, serif`;
-  context.fillText(book.title, width / 2, 895);
-  context.font = "500 14px ui-monospace, SFMono-Regular, Menlo, monospace";
-  context.fillText("BOOKSHELF EDITION", width / 2, 940);
-  context.textAlign = "start";
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
+
+  function paintFallback() {
+    const gradient = context.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, book.color);
+    gradient.addColorStop(1, book.palette.paperDeep);
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+    context.globalAlpha = 0.18;
+    context.strokeStyle = book.palette.paperPale;
+    context.lineWidth = 1;
+    for (let y = 22; y < height; y += 18) {
+      context.beginPath();
+      context.moveTo(0, y + ((book.seed * 7) % 13));
+      context.lineTo(width, y);
+      context.stroke();
+    }
+    context.globalAlpha = 1;
+    drawMotif(context, book, width / 2, height * 0.48);
+    drawCoverTypography(context, book, width, height);
+  }
+
+  paintFallback();
+  const artworkUrl = coverArtwork[book.id];
+  if (artworkUrl) {
+    const artwork = new Image();
+    artwork.decoding = "async";
+    artwork.onload = () => {
+      context.clearRect(0, 0, width, height);
+      context.drawImage(artwork, 0, 0, width, height);
+      drawCoverTypography(context, book, width, height);
+      texture.needsUpdate = true;
+    };
+    artwork.src = artworkUrl;
+  }
   return texture;
+}
+
+function drawCoverTypography(context, book, width, height) {
+  const upperShade = context.createLinearGradient(0, 0, 0, height * 0.22);
+  upperShade.addColorStop(0, "rgba(4, 8, 16, 0.42)");
+  upperShade.addColorStop(1, "rgba(4, 8, 16, 0)");
+  context.fillStyle = upperShade;
+  context.fillRect(0, 0, width, height * 0.22);
+  const lowerShade = context.createLinearGradient(0, height * 0.74, 0, height);
+  lowerShade.addColorStop(0, "rgba(4, 8, 16, 0)");
+  lowerShade.addColorStop(1, "rgba(4, 8, 16, 0.48)");
+  context.fillStyle = lowerShade;
+  context.fillRect(0, height * 0.74, width, height * 0.26);
+
+  context.save();
+  context.fillStyle = book.palette.ink;
+  context.shadowColor = "rgba(0, 0, 0, 0.36)";
+  context.shadowBlur = 5;
+  context.font = "600 22px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.letterSpacing = "4px";
+  context.fillText(`VOLUME ${book.roman}`, 76, 88);
+  context.font = "500 17px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.fillText(book.discipline.toUpperCase(), 76, 122);
+  context.textAlign = "center";
+  const titleSize = book.title.length > 13 ? 62 : 78;
+  context.font = `500 ${titleSize}px Georgia, Times New Roman, serif`;
+  context.fillText(book.title, width / 2, height - 126);
+  context.font = "500 15px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.fillText("BOOKSHELF EDITION", width / 2, height - 78);
+  context.restore();
 }
 
 function drawMotif(context, book, centerX, centerY) {
