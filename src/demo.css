@@ -1,0 +1,26 @@
+:root {
+  color: #f4eee6;
+  background: #171a24;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+.demo {
+  min-height: 100svh;
+  background: #171a24;
+}
+
+.demo .complete-shelf {
+  height: 100svh;
+}

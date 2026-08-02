@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist/types"
+  },
+  "include": ["src/index.ts", "src/components/BookShelf.tsx", "src/vite-env.d.ts"]
+}
