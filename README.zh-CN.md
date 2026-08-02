@@ -142,9 +142,7 @@ shelf.current?.resetView();     // 重置详情视角
 - WebGL 不可用或上下文丢失时，组件会隐藏 3D 场景并显示可读的静态书目目录。
 - 多个 `BookShelf` 可以同时挂载，每个实例拥有独立的 Three.js 场景和交互状态。
 
-## 灵感与许可证
+## 许可证
 
-本项目的编辑式书架概念参考了交互出版类作品（包括
-[MengTo/complete-shelf](https://github.com/MengTo/complete-shelf)），但本仓库不包含该项目的代码、生成运行时或图片素材。Three.js 运行时、几何体、交互和 Canvas 程序化封面均由本仓库原创实现。
 
 BookShelf 以 [MIT 协议](./LICENSE) 发布。示例目录中的产品名称仅作编辑性使用，其权利仍归各自所有者。

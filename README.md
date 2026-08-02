@@ -153,13 +153,7 @@ shelf.current?.resetView();
 - If WebGL is unavailable or the context is lost, the 3D scene is hidden and a readable static catalog remains visible.
 - Multiple `BookShelf` instances can be mounted at the same time. Each instance owns an independent Three.js scene and interaction state.
 
-## Origin and license
-
-The editorial bookshelf idea was informed by the broader interactive-publishing
-genre, including [MengTo/complete-shelf](https://github.com/MengTo/complete-shelf).
-This repository does not contain code, generated runtime files, or image assets
-from that project. Its Three.js runtime, geometry, interaction code, and
-procedural Canvas cover art are authored in this repository.
+## license
 
 BookShelf is released under the [MIT License](./LICENSE). Product names in the
 included conceptual catalog are used editorially and remain the property of
