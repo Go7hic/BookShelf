@@ -68,7 +68,7 @@ assert.match(
 assert.match(runtime, /makeEndpaperTexture/);
 assert.match(runtime, /drawReadingPage/);
 assert.match(runtime, /getSpreadLabels/);
-assert.match(runtime, /readingPivot/);
+assert.doesNotMatch(runtime, /readingPivot/);
 assert.match(runtime, /const SPREAD_COUNT = 5/);
 assert.match(runtime, /BookShelf volume motion/);
 assert.match(runtime, /makeContactShadowTexture/);
@@ -82,5 +82,11 @@ assert.match(runtime, /fromScale: volume\.root\.scale\.x/);
 assert.match(runtime, /toScale: getDetailScale\(\)/);
 assert.match(runtime, /volume\.contactShadow\.visible = false/);
 assert.match(runtime, /volume\.contactShadow\.visible = true/);
+assert.match(runtime, /const READING_LEAF_COUNT = SPREAD_COUNT - 1/);
+assert.match(runtime, /const readingLeaves = \[\]/);
+assert.match(runtime, /function getReadingLeafPose/);
+assert.match(runtime, /function ensureReadingLeafArt/);
+assert.match(runtime, /function beginPageDrag/);
+assert.match(runtime, /function commitPageDrag/);
 
 console.log(`Verified original BookShelf runtime and ${runtimeRoles.size} scoped DOM roles.`);

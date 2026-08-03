@@ -10,6 +10,8 @@ const OPEN_DURATION = 740;
 const CLOSE_DURATION = 680;
 const LEVEL_DURATION = 460;
 const SPREAD_COUNT = 5;
+const READING_LEAF_COUNT = SPREAD_COUNT - 1;
+const PAGE_DRAG_DISTANCE = 150;
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const mod = (value, length) => ((value % length) + length) % length;
@@ -419,11 +421,6 @@ function createVolume(book, index) {
   const foilTexture = makeFoilTexture(book);
   const clothMaps = makeClothMaps(book);
   const endpaperTexture = makeEndpaperTexture(book);
-  const readingCanvas = document.createElement("canvas");
-  readingCanvas.width = 640;
-  readingCanvas.height = 960;
-  drawReadingPage(readingCanvas, book, 0);
-  const readingTexture = configureCanvasTexture(new THREE.CanvasTexture(readingCanvas));
   const cloth = new THREE.MeshPhysicalMaterial({
     color: book.color,
     normalMap: clothMaps.normal,
@@ -468,14 +465,7 @@ function createVolume(book, index) {
     side: THREE.DoubleSide,
     transparent: true,
   });
-  const readingPaper = new THREE.MeshPhysicalMaterial({
-    color: "#f4ede0",
-    map: readingTexture,
-    roughness: 0.96,
-    side: THREE.DoubleSide,
-    transparent: true,
-  });
-  materials.push(cloth, page, artwork, foil, endpaper, readingPaper);
+  materials.push(cloth, page, artwork, foil, endpaper);
 
   const pageBlock = new THREE.Mesh(new RoundedBoxGeometry(pageWidth, pageHeight, pageDepth, 2, 0.0025), page);
   motion.add(pageBlock);
@@ -509,13 +499,49 @@ function createVolume(book, index) {
   pageLines.visible = false;
   motion.add(pageLines);
 
-  const readingPivot = new THREE.Group();
-  readingPivot.position.set(0, 0, pageDepth * 0.5 + 0.006);
-  const readingPage = new THREE.Mesh(new THREE.PlaneGeometry(pageWidth - 0.045, pageHeight - 0.055), readingPaper);
-  readingPage.position.x = (pageWidth - 0.045) * 0.5;
-  readingPivot.add(readingPage);
-  readingPivot.visible = false;
-  motion.add(readingPivot);
+  const readingLeaves = [];
+  const readingSurfaces = [];
+  const readingMaterials = [endpaper];
+  const readableWidth = pageWidth - 0.1;
+  const readableHeight = pageHeight - 0.055;
+  for (let leafIndex = 0; leafIndex < READING_LEAF_COUNT; leafIndex += 1) {
+    const leafOrder = READING_LEAF_COUNT - 1 - leafIndex;
+    const createPaperMaterial = () => {
+      const material = new THREE.MeshPhysicalMaterial({
+        color: "#f4ede0",
+        roughness: 0.96,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      materials.push(material);
+      readingMaterials.push(material);
+      return material;
+    };
+    const pivot = new THREE.Group();
+    const restZ = pageDepth * 0.5 + 0.008 + leafIndex * 0.0022;
+    pivot.position.set(-width * 0.5 + 0.052, 0, restZ);
+    const frontMaterial = createPaperMaterial();
+    const backMaterial = createPaperMaterial();
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(readableWidth, readableHeight), frontMaterial);
+    front.position.set(readableWidth * 0.5, 0, 0.00024);
+    const backPage = new THREE.Mesh(new THREE.PlaneGeometry(readableWidth, readableHeight), backMaterial);
+    backPage.position.set(readableWidth * 0.5, 0, -0.00024);
+    backPage.rotation.y = Math.PI;
+    pivot.add(front, backPage);
+    pivot.visible = false;
+    motion.add(pivot);
+      readingLeaves.push({
+        pivot,
+      order: leafOrder,
+      restZ,
+      turnedZ: pageDepth * 0.5 + board + 0.004 + leafIndex * 0.0022,
+      frontMaterial,
+      backMaterial,
+      });
+    readingSurfaces.push(front, backPage);
+  }
 
   const contactShadow = new THREE.Mesh(
     new THREE.PlaneGeometry(width * 1.26, depth * 2.1),
@@ -542,16 +568,14 @@ function createVolume(book, index) {
     coverTexture,
     foilTexture,
     endpaperTexture,
-    readingTexture,
-    readingCanvas,
     clothMaps,
     contactShadow,
     hit: art,
-    readingHit: readingPage,
-    readingPivot,
-    readingMaterials: [endpaper, readingPaper],
+    readingLeaves,
+    readingSurfaces,
+    readingMaterials,
+    readingArtReady: false,
     readingFade: 0,
-    pageTurnTarget: 0,
     dimensions: { width, height, depth },
     target: new THREE.Vector3(),
     targetRotation: new THREE.Euler(),
@@ -638,7 +662,7 @@ export function createBookShelfRuntime(experience, options = {}) {
   let mode = "browse";
   let readingOpen = false;
   let pageIndex = 0;
-  let pageTurnTimer = 0;
+  let pageDrag = null;
   let currentIndex = clamp(Math.trunc(options.initialIndex || 0), 0, catalog.length - 1);
   let currentLevel = getBookLevel(levelSizes, currentIndex);
   let hoverIndex = -1;
@@ -684,8 +708,8 @@ export function createBookShelfRuntime(experience, options = {}) {
     const volumes = catalog.map(createVolume);
     const hitMeshes = volumes.flatMap((volume, index) => {
       volume.hit.userData.volumeIndex = index;
-      volume.readingHit.userData.volumeIndex = index;
-      return [volume.hit, volume.readingHit];
+      volume.readingSurfaces.forEach((surface) => { surface.userData.volumeIndex = index; });
+      return [volume.hit, ...volume.readingSurfaces];
     });
     scene.add(environment, detailGroup);
     environment.add(shelfGroup);
@@ -884,10 +908,21 @@ export function createBookShelfRuntime(experience, options = {}) {
       updateText(detailMotif, book.motif);
     }
 
-    function updateReadingSpread(volume, spreadIndex) {
-      drawReadingPage(volume.readingCanvas, volume.book, spreadIndex);
-      volume.readingTexture.needsUpdate = true;
-      requestRender();
+    function ensureReadingLeafArt(volume) {
+      if (volume.readingArtReady) return;
+      const assignTexture = (material, spreadIndex) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 384;
+        canvas.height = 576;
+        drawReadingPage(canvas, volume.book, spreadIndex);
+        material.map = configureCanvasTexture(new THREE.CanvasTexture(canvas));
+        material.needsUpdate = true;
+      };
+      volume.readingLeaves.forEach((leaf) => {
+        assignTexture(leaf.frontMaterial, leaf.order);
+        assignTexture(leaf.backMaterial, Math.min(leaf.order + 1, SPREAD_COUNT - 1));
+      });
+      volume.readingArtReady = true;
     }
 
     function updateReadingUi() {
@@ -1013,6 +1048,25 @@ export function createBookShelfRuntime(experience, options = {}) {
       }
     }
 
+    function getReadingLeafPose(volume, leaf) {
+      let turn = 0;
+      if (readingOpen && volume === currentVolume()) {
+        turn = leaf.order < pageIndex ? 1 : 0;
+        if (pageDrag?.volume === volume && pageDrag.direction !== 0) {
+          const dragOrder = pageDrag.direction > 0 ? pageIndex : pageIndex - 1;
+          if (leaf.order === dragOrder) {
+            turn = pageDrag.direction > 0 ? pageDrag.progress : 1 - pageDrag.progress;
+          }
+        }
+      }
+      const restingAngle = -0.028 + leaf.order * 0.008;
+      const turnedAngle = -Math.PI + 0.085 + leaf.order * 0.014;
+      return {
+        rotation: THREE.MathUtils.lerp(restingAngle, turnedAngle, turn),
+        z: THREE.MathUtils.lerp(leaf.restZ, leaf.turnedZ, turn),
+      };
+    }
+
     function settleBooks(delta) {
       let isSettling = false;
       volumes.forEach((volume) => {
@@ -1022,15 +1076,23 @@ export function createBookShelfRuntime(experience, options = {}) {
         const pageDifference = Math.abs(volume.pageLines.rotation.y - volume.pageTarget);
         const readingTarget = readingOpen && volume === currentVolume() ? 1 : 0;
         const readingDifference = Math.abs(volume.readingFade - readingTarget);
-        const pageTurnDifference = Math.abs(volume.readingPivot.rotation.y - volume.pageTurnTarget);
-        if (coverDifference > 0.0005 || pageDifference > 0.0005 || readingDifference > 0.0005 || pageTurnDifference > 0.0005) isSettling = true;
+        const readingLeafDifference = volume.readingLeaves.some((leaf) => {
+          const pose = getReadingLeafPose(volume, leaf);
+          return Math.abs(leaf.pivot.rotation.y - pose.rotation) > 0.0005
+            || Math.abs(leaf.pivot.position.z - pose.z) > 0.0005;
+        });
+        if (coverDifference > 0.0005 || pageDifference > 0.0005 || readingDifference > 0.0005 || readingLeafDifference) isSettling = true;
         volume.coverPivot.rotation.y = damp(volume.coverPivot.rotation.y, hoverCoverTarget, 13, delta);
         volume.pageLines.rotation.y = damp(volume.pageLines.rotation.y, volume.pageTarget, 13, delta);
         volume.readingFade = damp(volume.readingFade, readingTarget, 15, delta);
-        volume.readingPivot.rotation.y = damp(volume.readingPivot.rotation.y, volume.pageTurnTarget, 18, delta);
-        volume.readingPivot.visible = volume.readingFade > 0.01;
+        volume.readingLeaves.forEach((leaf) => {
+          const pose = getReadingLeafPose(volume, leaf);
+          leaf.pivot.rotation.y = damp(leaf.pivot.rotation.y, pose.rotation, 14, delta);
+          leaf.pivot.position.z = damp(leaf.pivot.position.z, pose.z, 14, delta);
+          leaf.pivot.visible = volume.readingFade > 0.01;
+        });
         volume.readingMaterials.forEach((material) => {
-          material.opacity = volume.readingFade;
+          material.opacity = volume.opacity * volume.readingFade;
           material.depthWrite = volume.readingFade > 0.98;
         });
         if (!volume.root.visible || volume.root.parent !== shelfGroup) return;
@@ -1176,7 +1238,6 @@ export function createBookShelfRuntime(experience, options = {}) {
       pageIndex = 0;
       volume.coverTarget = 0;
       volume.pageTarget = 0;
-      volume.pageTurnTarget = 0;
       volume.contactShadow.visible = false;
       environment.visible = true;
       environment.position.y = 0;
@@ -1209,10 +1270,9 @@ export function createBookShelfRuntime(experience, options = {}) {
       mode = "closing";
       readingOpen = false;
       pageIndex = 0;
-      window.clearTimeout(pageTurnTimer);
+      pageDrag = null;
       volume.coverTarget = 0;
       volume.pageTarget = 0;
-      volume.pageTurnTarget = 0;
       experience.classList.remove("is-reading");
       controls.enabled = false;
       const target = getTargetFor(volume, currentIndex - levelStart());
@@ -1242,12 +1302,11 @@ export function createBookShelfRuntime(experience, options = {}) {
       if (mode !== "detail") return;
       readingOpen = !readingOpen;
       const volume = currentVolume();
-      window.clearTimeout(pageTurnTimer);
       pageIndex = readingOpen ? pageIndex : 0;
       volume.coverTarget = readingOpen ? -Math.PI + 0.08 : 0;
       volume.pageTarget = 0;
-      volume.pageTurnTarget = 0;
-      if (readingOpen) updateReadingSpread(volume, pageIndex);
+      pageDrag = null;
+      if (readingOpen) ensureReadingLeafArt(volume);
       experience.classList.toggle("is-reading", readingOpen);
       updateReadingUi();
       options.onReadingChange?.(readingOpen);
@@ -1258,24 +1317,16 @@ export function createBookShelfRuntime(experience, options = {}) {
     function previousPage() {
       if (!readingOpen || pageIndex === 0) return;
       pageIndex -= 1;
-      const volume = currentVolume();
-      volume.pageTurnTarget = 0.13;
-      updateReadingSpread(volume, pageIndex);
       updateReadingUi();
-      window.clearTimeout(pageTurnTimer);
-      pageTurnTimer = window.setTimeout(() => { volume.pageTurnTarget = 0; requestRender(); }, 135);
+      announce(`Page ${pageIndex + 1} of ${SPREAD_COUNT}: ${getSpreadLabels(currentBook())[pageIndex]}.`);
       requestRender();
     }
 
     function nextPage() {
       if (!readingOpen || pageIndex >= SPREAD_COUNT - 1) return;
       pageIndex += 1;
-      const volume = currentVolume();
-      volume.pageTurnTarget = -0.13;
-      updateReadingSpread(volume, pageIndex);
       updateReadingUi();
-      window.clearTimeout(pageTurnTimer);
-      pageTurnTimer = window.setTimeout(() => { volume.pageTurnTarget = 0; requestRender(); }, 135);
+      announce(`Page ${pageIndex + 1} of ${SPREAD_COUNT}: ${getSpreadLabels(currentBook())[pageIndex]}.`);
       requestRender();
     }
 
@@ -1297,7 +1348,58 @@ export function createBookShelfRuntime(experience, options = {}) {
       return hit?.object.userData.volumeIndex ?? -1;
     }
 
+    function beginPageDrag(event) {
+      if (!readingOpen || readPointer(event) !== currentIndex) return false;
+      pageDrag = {
+        volume: currentVolume(),
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        direction: 0,
+        progress: 0,
+      };
+      controls.enabled = false;
+      sceneCanvas.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      requestRender();
+      return true;
+    }
+
+    function updatePageDrag(event) {
+      if (!pageDrag || event.pointerId !== pageDrag.pointerId) return;
+      const deltaX = event.clientX - pageDrag.startX;
+      const deltaY = event.clientY - pageDrag.startY;
+      if (Math.abs(deltaX) < 4 || Math.abs(deltaX) < Math.abs(deltaY) * 0.72) {
+        pageDrag.progress = 0;
+        pageDrag.direction = 0;
+      } else {
+        const direction = deltaX < 0 ? 1 : -1;
+        const available = direction > 0 ? pageIndex < SPREAD_COUNT - 1 : pageIndex > 0;
+        pageDrag.direction = available ? direction : 0;
+        pageDrag.progress = available ? clamp(Math.abs(deltaX) / PAGE_DRAG_DISTANCE, 0, 1) : 0;
+      }
+      event.preventDefault();
+      requestRender();
+    }
+
+    function commitPageDrag(event) {
+      if (!pageDrag || event.pointerId !== pageDrag.pointerId) return false;
+      updatePageDrag(event);
+      const drag = pageDrag;
+      pageDrag = null;
+      controls.enabled = mode === "detail";
+      if (sceneCanvas.hasPointerCapture?.(event.pointerId)) sceneCanvas.releasePointerCapture(event.pointerId);
+      if (drag.progress >= 0.3 && drag.direction > 0) nextPage();
+      else if (drag.progress >= 0.3 && drag.direction < 0) previousPage();
+      else requestRender();
+      return true;
+    }
+
     function onPointerMove(event) {
+      if (pageDrag) {
+        updatePageDrag(event);
+        return;
+      }
       if (mode !== "browse") return;
       const index = readPointer(event);
       if (hoverIndex === index) return;
@@ -1319,10 +1421,12 @@ export function createBookShelfRuntime(experience, options = {}) {
     }
 
     function onPointerDown(event) {
+      if (mode === "detail" && beginPageDrag(event)) return;
       pointerDown = { x: event.clientX, y: event.clientY, index: mode === "browse" ? readPointer(event) : -1 };
     }
 
     function onPointerUp(event) {
+      if (commitPageDrag(event)) return;
       if (!pointerDown) return;
       const distance = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
       const selected = pointerDown.index;
@@ -1333,7 +1437,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         else inspect();
       } else if (mode === "detail") {
         const detailBook = readPointer(event);
-        if (detailBook === currentIndex) toggleBook();
+        if (!readingOpen && detailBook === currentIndex) toggleBook();
       }
     }
 
@@ -1461,7 +1565,6 @@ export function createBookShelfRuntime(experience, options = {}) {
         if (destroyed) return;
         destroyed = true;
         window.clearTimeout(wheelTimer);
-        window.clearTimeout(pageTurnTimer);
         if (frame) cancelAnimationFrame(frame);
         abort.abort();
         observer.disconnect();
