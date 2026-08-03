@@ -57,13 +57,18 @@ assert.doesNotMatch(
 );
 assert.match(
   runtime,
-  /OPENING_ENVIRONMENT_CLEAR_PROGRESS[\s\S]*setEnvironmentVisible\(false\)/,
-  "The shelf environment must clear during the detail-opening transition",
+  /OPENING_ENVIRONMENT_CLEAR_PROGRESS[\s\S]*environment\.position\.y = THREE\.MathUtils\.lerp\(0, -4\.2, shelfExit\)/,
+  "The shelf must move out of view during the detail-opening transition",
 );
 assert.match(
   runtime,
-  /CLOSING_ENVIRONMENT_REVEAL_PROGRESS[\s\S]*setEnvironmentVisible\(true\)/,
-  "The shelf environment must return only near the end of the closing transition",
+  /CLOSING_ENVIRONMENT_REVEAL_PROGRESS[\s\S]*environment\.position\.y = THREE\.MathUtils\.lerp\(-4\.2, 0, shelfReturn\)/,
+  "The shelf must return along the closing transition",
 );
+assert.match(runtime, /makeEndpaperTexture/);
+assert.match(runtime, /drawReadingPage/);
+assert.match(runtime, /getSpreadLabels/);
+assert.match(runtime, /readingPivot/);
+assert.match(runtime, /const SPREAD_COUNT = 5/);
 
 console.log(`Verified original BookShelf runtime and ${runtimeRoles.size} scoped DOM roles.`);
