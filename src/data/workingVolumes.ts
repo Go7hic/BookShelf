@@ -134,8 +134,6 @@ export const workingShelves = [
         chapters: ["System map", "Tool orbit", "Spatial proof"],
         seed: 44
       },
-  ],
-  [
       {
         id: "figma",
         title: "Figma",

@@ -24,7 +24,7 @@ export function Library() {
 }
 ```
 
-`shelves` 是唯一的书目输入。它是嵌套数组：外层每一项代表一层书架，内层数组按从左到右的顺序放置该层书籍。未传入（或全部为空）时，组件会使用内置的 `workingShelves`。
+`shelves` 是唯一的书目输入。它是嵌套数组：外层每一项代表一层书架，内层数组按从左到右的顺序放置该层书籍。未传入（或全部为空）时，组件会使用内置的 `workingShelves`：保留原来 7 本书同一排的顺序、布局和封面素材。
 
 每一屏只显示一层横向轮播，滚轮和上下方向键在明确配置的层之间切换；左右操作只会切换当前层中的书。
 
@@ -67,7 +67,7 @@ export function CustomLibrary() {
         { ...workingShelves[0][0], title: "Studio Codex", note: "第一层的第一本书。" },
         workingShelves[0][1],
       ],
-      [workingShelves[1][0], workingShelves[1][1], workingShelves[1][2]],
+      [workingShelves[0][2], workingShelves[0][3], workingShelves[0][4]],
     ],
     [],
   );
