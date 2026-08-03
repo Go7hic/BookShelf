@@ -662,6 +662,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
     const browseCamera = new THREE.Vector3(0, 1.92, 8.1);
     const detailCamera = new THREE.Vector3(-0.52, 1.78, 5.25);
+    const detailTarget = new THREE.Vector3(0, 1.56, 0);
     camera.position.copy(browseCamera);
     const cameraTarget = new THREE.Vector3(0, 1.55, 0);
     const controls = new OrbitControls(camera, sceneCanvas);
@@ -776,6 +777,10 @@ export function createBookShelfRuntime(experience, options = {}) {
 
     function currentVolume() {
       return volumes[currentIndex];
+    }
+
+    function getDetailScale() {
+      return experience.getBoundingClientRect().width < 820 ? 0.76 : 0.9;
     }
 
     function levelStart(level = currentLevel) {
@@ -1074,8 +1079,9 @@ export function createBookShelfRuntime(experience, options = {}) {
         environment.position.y = THREE.MathUtils.lerp(0, -4.2, shelfExit);
         volume.root.position.lerpVectors(transition.fromPosition, transition.toPosition, eased);
         volume.root.rotation.y = THREE.MathUtils.lerp(transition.fromRotation, 0, eased);
+        volume.root.scale.setScalar(THREE.MathUtils.lerp(transition.fromScale, transition.toScale, eased));
         camera.position.lerpVectors(transition.cameraFrom, detailCamera, eased);
-        cameraTarget.lerpVectors(transition.targetFrom, new THREE.Vector3(0, 1.56, 0), eased);
+        cameraTarget.lerpVectors(transition.targetFrom, detailTarget, eased);
         if (progress === 1) {
           mode = "detail";
           controls.enabled = true;
@@ -1090,6 +1096,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         volume.root.position.lerpVectors(transition.fromPosition, transition.toPosition, eased);
         volume.root.rotation.y = THREE.MathUtils.lerp(transition.fromRotation, transition.toRotation, eased);
         volume.root.rotation.z = THREE.MathUtils.lerp(transition.fromRotationZ, transition.toRotationZ, eased);
+        volume.root.scale.setScalar(THREE.MathUtils.lerp(transition.fromScale, transition.toScale, eased));
         camera.position.lerpVectors(transition.cameraFrom, browseCamera, eased);
         cameraTarget.lerpVectors(transition.targetFrom, new THREE.Vector3(0, 1.55, 0), eased);
         if (progress === 1) {
@@ -1097,6 +1104,8 @@ export function createBookShelfRuntime(experience, options = {}) {
           volume.root.position.copy(transition.toPosition);
           volume.root.rotation.y = transition.toRotation;
           volume.root.rotation.z = transition.toRotationZ;
+          volume.root.scale.setScalar(transition.toScale);
+          volume.contactShadow.visible = true;
           volume.target.copy(transition.toPosition);
           volume.targetRotation.set(0, transition.toRotation, transition.toRotationZ);
           environment.position.y = 0;
@@ -1168,6 +1177,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       volume.coverTarget = 0;
       volume.pageTarget = 0;
       volume.pageTurnTarget = 0;
+      volume.contactShadow.visible = false;
       environment.visible = true;
       environment.position.y = 0;
       controls.enabled = false;
@@ -1179,6 +1189,8 @@ export function createBookShelfRuntime(experience, options = {}) {
         fromPosition: volume.root.position.clone(),
         toPosition: new THREE.Vector3(-0.95, 1.56, 0.15),
         fromRotation: volume.root.rotation.y,
+        fromScale: volume.root.scale.x,
+        toScale: getDetailScale(),
         cameraFrom: camera.position.clone(),
         targetFrom: cameraTarget.clone(),
       };
@@ -1204,6 +1216,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       experience.classList.remove("is-reading");
       controls.enabled = false;
       const target = getTargetFor(volume, currentIndex - levelStart());
+      const focus = 1 - clamp(Math.abs(target.x) / 1.5, 0, 1);
       transition = {
         kind: "closing",
         startedAt: performance.now(),
@@ -1214,6 +1227,8 @@ export function createBookShelfRuntime(experience, options = {}) {
         toRotation: volume.targetRotation.y,
         fromRotationZ: volume.root.rotation.z,
         toRotationZ: volume.targetRotation.z,
+        fromScale: volume.root.scale.x,
+        toScale: 1 + focus * 0.09,
         cameraFrom: camera.position.clone(),
         targetFrom: cameraTarget.clone(),
       };
@@ -1268,7 +1283,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       if (mode !== "detail") return;
       controls.reset();
       camera.position.copy(detailCamera);
-      cameraTarget.set(0, 1.56, 0);
+      cameraTarget.copy(detailTarget);
       controls.target.copy(cameraTarget);
       requestRender();
     }

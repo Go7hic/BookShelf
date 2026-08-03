@@ -77,5 +77,10 @@ assert.match(runtime, /backFill/);
 assert.match(runtime, /spineRake/);
 assert.match(runtime, /setBookTheme/);
 assert.match(runtime, /updateThemeMotion/);
+assert.match(runtime, /function getDetailScale/);
+assert.match(runtime, /fromScale: volume\.root\.scale\.x/);
+assert.match(runtime, /toScale: getDetailScale\(\)/);
+assert.match(runtime, /volume\.contactShadow\.visible = false/);
+assert.match(runtime, /volume\.contactShadow\.visible = true/);
 
 console.log(`Verified original BookShelf runtime and ${runtimeRoles.size} scoped DOM roles.`);
