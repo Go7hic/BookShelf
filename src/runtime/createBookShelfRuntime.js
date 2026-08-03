@@ -1145,6 +1145,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         camera.position.lerpVectors(transition.cameraFrom, detailCamera, eased);
         cameraTarget.lerpVectors(transition.targetFrom, detailTarget, eased);
         if (progress === 1) {
+          environment.visible = false;
           mode = "detail";
           controls.enabled = true;
           experience.classList.remove("is-opening");
@@ -1267,6 +1268,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         if (mode !== "detail") return;
       }
       const volume = currentVolume();
+      environment.visible = true;
       mode = "closing";
       readingOpen = false;
       pageIndex = 0;

@@ -88,5 +88,15 @@ assert.match(runtime, /function getReadingLeafPose/);
 assert.match(runtime, /function ensureReadingLeafArt/);
 assert.match(runtime, /function beginPageDrag/);
 assert.match(runtime, /function commitPageDrag/);
+assert.match(
+  runtime,
+  /if \(progress === 1\) \{[\s\S]*environment\.visible = false;[\s\S]*mode = "detail";/,
+  "The shelf environment must leave the render tree when detail orbit begins",
+);
+assert.match(
+  runtime,
+  /function close\(\) \{[\s\S]*environment\.visible = true;[\s\S]*mode = "closing";/,
+  "The shelf environment must return only for the closing transition",
+);
 
 console.log(`Verified original BookShelf runtime and ${runtimeRoles.size} scoped DOM roles.`);
