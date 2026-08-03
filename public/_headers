@@ -1,0 +1,4 @@
+# Keep the document itself fresh after every Pages deployment. The fingerprinted
+# JavaScript and CSS assets remain safe to cache indefinitely.
+/
+  Cache-Control: no-cache
