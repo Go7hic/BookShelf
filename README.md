@@ -27,8 +27,9 @@ export function Library() {
 
 `shelves` is the only collection input. It is a nested array: each outer item
 is one shelf, and the books inside it are displayed from left to right. When it
-is omitted (or contains no books), the component uses bundled `workingShelves`:
-the original seven-book row, unchanged in order, layout, and artwork.
+is omitted (or contains no books), the component uses bundled `workingShelves`.
+Its first shelf is the original seven-book row, unchanged in order, layout, and
+artwork. A separate second shelf is included for vertical browsing.
 
 Each screen shows one horizontal carousel row. Wheel and vertical arrow input
 move between the explicit shelf arrays; left/right input only changes the book
