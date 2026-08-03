@@ -959,7 +959,6 @@ export function createBookShelfRuntime(experience, options = {}) {
         volumes.forEach((volume) => disposeObject(volume.root));
         disposeObject(environment);
         renderer.dispose();
-        renderer.forceContextLoss();
       },
     };
   } catch (error) {
