@@ -401,9 +401,12 @@ function drawReadingPage(canvas, book, spreadIndex) {
   return context;
 }
 
-function createVolume(book) {
+function createVolume(book, index) {
   const root = new THREE.Group();
   root.name = `BookShelf volume ${book.id}`;
+  const motion = new THREE.Group();
+  motion.name = `BookShelf volume motion ${book.id}`;
+  root.add(motion);
   const width = book.width;
   const height = book.height;
   const depth = book.depth;
@@ -475,11 +478,11 @@ function createVolume(book) {
   materials.push(cloth, page, artwork, foil, endpaper, readingPaper);
 
   const pageBlock = new THREE.Mesh(new RoundedBoxGeometry(pageWidth, pageHeight, pageDepth, 2, 0.0025), page);
-  root.add(pageBlock);
+  motion.add(pageBlock);
 
   const back = new THREE.Mesh(new RoundedBoxGeometry(width, height, board, 2, 0.0045), cloth);
   back.position.z = -pageDepth * 0.5 - board * 0.5;
-  root.add(back);
+  motion.add(back);
 
   const coverPivot = new THREE.Group();
   coverPivot.position.set(-width / 2, 0, pageDepth * 0.5 + board * 0.5);
@@ -496,15 +499,15 @@ function createVolume(book) {
   innerCover.position.set(width / 2, 0, -board * 0.515);
   innerCover.rotation.y = Math.PI;
   coverPivot.add(innerCover);
-  root.add(coverPivot);
+  motion.add(coverPivot);
 
   const spine = new THREE.Mesh(new RoundedBoxGeometry(0.082, height - 0.01, depth + board * 2, 2, 0.0015), cloth);
   spine.position.set(-width * 0.5 + 0.041, 0, 0);
-  root.add(spine);
+  motion.add(spine);
 
   const pageLines = new THREE.Group();
   pageLines.visible = false;
-  root.add(pageLines);
+  motion.add(pageLines);
 
   const readingPivot = new THREE.Group();
   readingPivot.position.set(0, 0, pageDepth * 0.5 + 0.006);
@@ -512,13 +515,12 @@ function createVolume(book) {
   readingPage.position.x = (pageWidth - 0.045) * 0.5;
   readingPivot.add(readingPage);
   readingPivot.visible = false;
-  root.add(readingPivot);
+  motion.add(readingPivot);
 
   const contactShadow = new THREE.Mesh(
     new THREE.PlaneGeometry(width * 1.26, depth * 2.1),
     new THREE.MeshBasicMaterial({ color: "#201209", alphaMap: makeContactShadowTexture(), opacity: 0.28, transparent: true, depthWrite: false }),
   );
-  materials.push(contactShadow.material);
   contactShadow.rotation.x = -Math.PI / 2;
   contactShadow.position.set(0, -height * 0.5 - 0.022, 0.035);
   root.add(contactShadow);
@@ -531,7 +533,9 @@ function createVolume(book) {
 
   return {
     book,
+    index,
     root,
+    motion,
     coverPivot,
     pageLines,
     materials,
@@ -717,7 +721,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     const key = new THREE.DirectionalLight("#ffe8c2", 1.42);
     key.position.set(-4.6, 7.4, 5.8);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.left = -6;
     key.shadow.camera.right = 6;
     key.shadow.camera.top = 6;
@@ -726,6 +730,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     key.shadow.camera.far = 18;
     key.shadow.bias = -0.00018;
     key.shadow.normalBias = 0.018;
+    key.shadow.radius = 3.5;
     const fill = new THREE.DirectionalLight("#d8e3e7", 0.3);
     fill.position.set(5.5, 3.6, 4.2);
     const softKey = new THREE.RectAreaLight("#ffe8c2", 5.4, 4.8, 5.6);
@@ -734,11 +739,31 @@ export function createBookShelfRuntime(experience, options = {}) {
     const rim = new THREE.RectAreaLight("#d5a45e", 3.45, 1.6, 4.8);
     rim.position.set(3.8, 3.6, -2.1);
     rim.lookAt(-0.2, 1.5, 0);
+    const backFill = new THREE.RectAreaLight("#d8e3e7", 2.7, 3.8, 4.8);
+    backFill.position.set(-1.8, 2.9, -4.5);
+    backFill.lookAt(-0.1, 1.45, 0);
+    const spineRake = new THREE.RectAreaLight("#ffe8c2", 1.9, 0.9, 4.6);
+    spineRake.position.set(-4.6, 3.2, 1.1);
+    spineRake.lookAt(-0.55, 1.5, 0);
     const pageRake = new THREE.RectAreaLight("#fff7e7", 2.15, 1.15, 3.8);
     pageRake.position.set(4.2, 4.8, 3.1);
     pageRake.lookAt(0.65, 1.55, 0);
-    scene.add(ambient, key, fill, softKey, rim, pageRake);
+    scene.add(ambient, key, fill, softKey, rim, backFill, spineRake, pageRake);
     volumes.forEach((volume) => shelfGroup.add(volume.root));
+
+    const themeTargets = {
+      floor: new THREE.Color(),
+      wall: new THREE.Color(),
+      shelf: new THREE.Color(),
+      fog: new THREE.Color(),
+      hemisphere: new THREE.Color(),
+      hemisphereGround: new THREE.Color(),
+      key: new THREE.Color(),
+      fill: new THREE.Color(),
+      rim: new THREE.Color(),
+    };
+    let themeMoving = false;
+    let themeInitialized = false;
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -771,7 +796,25 @@ export function createBookShelfRuntime(experience, options = {}) {
       });
     }
 
-    function updateTheme(book) {
+    function applyThemeImmediately() {
+      floorMaterial.color.copy(themeTargets.floor);
+      wallMaterial.color.copy(themeTargets.wall);
+      shelfMaterial.color.copy(themeTargets.shelf);
+      scene.background.copy(themeTargets.wall);
+      scene.fog.color.copy(themeTargets.fog);
+      ambient.color.copy(themeTargets.hemisphere);
+      ambient.groundColor.copy(themeTargets.hemisphereGround);
+      key.color.copy(themeTargets.key);
+      softKey.color.copy(themeTargets.key);
+      fill.color.copy(themeTargets.fill);
+      rim.color.copy(themeTargets.rim);
+      backFill.color.copy(themeTargets.fill);
+      spineRake.color.copy(themeTargets.key);
+      pageRake.color.copy(themeTargets.hemisphere);
+      themeMoving = false;
+    }
+
+    function setBookTheme(book) {
       const style = experience.style;
       style.setProperty("--paper", book.palette.paper);
       style.setProperty("--paper-deep", book.palette.paperDeep);
@@ -780,6 +823,50 @@ export function createBookShelfRuntime(experience, options = {}) {
       style.setProperty("--ink-soft", book.palette.inkSoft);
       style.setProperty("--shelf", book.palette.shelf);
       style.setProperty("--shelf-dark", book.palette.shelfDark);
+      themeTargets.floor.set(book.palette.paperDeep);
+      themeTargets.wall.set(book.palette.wall);
+      themeTargets.shelf.set(book.palette.shelf);
+      themeTargets.fog.set(book.palette.wall);
+      themeTargets.hemisphere.set(book.palette.paperPale);
+      themeTargets.hemisphereGround.set(book.palette.shelf);
+      themeTargets.key.set(book.palette.light);
+      themeTargets.fill.set(book.palette.fill);
+      themeTargets.rim.set(book.foil);
+      if (!themeInitialized) {
+        themeInitialized = true;
+        applyThemeImmediately();
+      } else {
+        themeMoving = true;
+      }
+    }
+
+    function updateThemeMotion(delta) {
+      if (!themeMoving) return false;
+      const amount = 1 - Math.exp(-delta * 5.5);
+      let largestGap = 0;
+      const easeColor = (current, target) => {
+        const redGap = current.r - target.r;
+        const greenGap = current.g - target.g;
+        const blueGap = current.b - target.b;
+        largestGap = Math.max(largestGap, redGap * redGap + greenGap * greenGap + blueGap * blueGap);
+        current.lerp(target, amount);
+      };
+      easeColor(floorMaterial.color, themeTargets.floor);
+      easeColor(wallMaterial.color, themeTargets.wall);
+      easeColor(shelfMaterial.color, themeTargets.shelf);
+      easeColor(scene.background, themeTargets.wall);
+      easeColor(scene.fog.color, themeTargets.fog);
+      easeColor(ambient.color, themeTargets.hemisphere);
+      easeColor(ambient.groundColor, themeTargets.hemisphereGround);
+      easeColor(key.color, themeTargets.key);
+      easeColor(softKey.color, themeTargets.key);
+      easeColor(fill.color, themeTargets.fill);
+      easeColor(rim.color, themeTargets.rim);
+      easeColor(backFill.color, themeTargets.fill);
+      easeColor(spineRake.color, themeTargets.key);
+      easeColor(pageRake.color, themeTargets.hemisphere);
+      if (largestGap < 0.0000025) applyThemeImmediately();
+      return themeMoving;
     }
 
     function updateDetailCopy(book) {
@@ -924,13 +1011,15 @@ export function createBookShelfRuntime(experience, options = {}) {
     function settleBooks(delta) {
       let isSettling = false;
       volumes.forEach((volume) => {
-        const coverDifference = Math.abs(volume.coverPivot.rotation.y - volume.coverTarget);
+        const isHovered = mode === "browse" && hoverIndex === volume.index;
+        const hoverCoverTarget = isHovered ? -0.085 : volume.coverTarget;
+        const coverDifference = Math.abs(volume.coverPivot.rotation.y - hoverCoverTarget);
         const pageDifference = Math.abs(volume.pageLines.rotation.y - volume.pageTarget);
         const readingTarget = readingOpen && volume === currentVolume() ? 1 : 0;
         const readingDifference = Math.abs(volume.readingFade - readingTarget);
         const pageTurnDifference = Math.abs(volume.readingPivot.rotation.y - volume.pageTurnTarget);
         if (coverDifference > 0.0005 || pageDifference > 0.0005 || readingDifference > 0.0005 || pageTurnDifference > 0.0005) isSettling = true;
-        volume.coverPivot.rotation.y = damp(volume.coverPivot.rotation.y, volume.coverTarget, 13, delta);
+        volume.coverPivot.rotation.y = damp(volume.coverPivot.rotation.y, hoverCoverTarget, 13, delta);
         volume.pageLines.rotation.y = damp(volume.pageLines.rotation.y, volume.pageTarget, 13, delta);
         volume.readingFade = damp(volume.readingFade, readingTarget, 15, delta);
         volume.readingPivot.rotation.y = damp(volume.readingPivot.rotation.y, volume.pageTurnTarget, 18, delta);
@@ -954,6 +1043,16 @@ export function createBookShelfRuntime(experience, options = {}) {
         if (Math.abs(volume.root.scale.x - targetScale) > 0.0005) isSettling = true;
         const nextScale = damp(volume.root.scale.x, targetScale, 12, delta);
         volume.root.scale.setScalar(nextScale);
+        const hoverY = isHovered ? 0.035 : 0;
+        const hoverTiltX = isHovered ? pointer.y * 0.035 : 0;
+        const hoverTiltY = isHovered ? -pointer.x * 0.035 : 0;
+        if (Math.abs(volume.motion.position.y - hoverY) > 0.0005
+          || Math.abs(volume.motion.rotation.x - hoverTiltX) > 0.0005
+          || Math.abs(volume.motion.rotation.y - hoverTiltY) > 0.0005) isSettling = true;
+        volume.motion.position.y = damp(volume.motion.position.y, hoverY, 9, delta);
+        volume.motion.rotation.x = damp(volume.motion.rotation.x, hoverTiltX, 10, delta);
+        volume.motion.rotation.y = damp(volume.motion.rotation.y, hoverTiltY, 10, delta);
+        volume.contactShadow.material.opacity = volume.opacity * (isHovered ? 0.3 : 0.24);
       });
       return isSettling;
     }
@@ -1021,7 +1120,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       const previousLevel = currentLevel;
       currentIndex = safe;
       currentLevel = nextLevel;
-      updateTheme(currentBook());
+      setBookTheme(currentBook());
       if (previousLevel !== nextLevel && animateLevel) {
         levelMotion = {
           from: previousLevel,
@@ -1188,7 +1287,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       const index = readPointer(event);
       if (hoverIndex === index) return;
       hoverIndex = index;
-      sceneCanvas.classList.toggle("has-closed-book-hover", index >= 0);
+      sceneCanvas.classList.toggle("has-book-hover", index >= 0);
       if (pointerLabel) {
         pointerLabel.classList.toggle("is-visible", index >= 0);
         pointerLabel.setAttribute("aria-hidden", String(index < 0));
@@ -1201,6 +1300,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         updateText(pointerLabelIndex, `Volume ${String(currentIndex + 1).padStart(2, "0")}`);
         updateText(pointerLabelTitle, currentBook().title);
       }
+      requestRender();
     }
 
     function onPointerDown(event) {
@@ -1269,6 +1369,7 @@ export function createBookShelfRuntime(experience, options = {}) {
         updateShelfMotion(now);
         shelfIsSettling = settleBooks(delta);
       }
+      const themeIsMoving = updateThemeMotion(delta);
       updateTransition(now, delta);
       if (mode !== "browse") {
         settleBooks(delta);
@@ -1279,7 +1380,7 @@ export function createBookShelfRuntime(experience, options = {}) {
       }
       camera.lookAt(cameraTarget);
       renderer.render(scene, camera);
-      if (transition || levelMotion || mode === "detail" || shelfIsSettling) requestRender();
+      if (transition || levelMotion || mode === "detail" || shelfIsSettling || themeIsMoving) requestRender();
     }
 
     function requestRender() {
@@ -1291,7 +1392,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     sceneCanvas.addEventListener("pointermove", onPointerMove, { signal });
     sceneCanvas.addEventListener("pointerleave", () => {
       hoverIndex = -1;
-      sceneCanvas.classList.remove("has-closed-book-hover");
+      sceneCanvas.classList.remove("has-book-hover");
       pointerLabel?.classList.remove("is-visible");
       pointerLabel?.setAttribute("aria-hidden", "true");
     }, { signal });
@@ -1315,7 +1416,7 @@ export function createBookShelfRuntime(experience, options = {}) {
     resetViewButton?.addEventListener("click", resetView, { signal });
     controls.addEventListener("change", requestRender);
 
-    updateTheme(currentBook());
+    setBookTheme(currentBook());
     applyLevelLayout(currentLevel, 1);
     hideNonDisplayedLevels();
     volumes.forEach((volume) => {

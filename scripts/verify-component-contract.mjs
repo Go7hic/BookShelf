@@ -70,5 +70,12 @@ assert.match(runtime, /drawReadingPage/);
 assert.match(runtime, /getSpreadLabels/);
 assert.match(runtime, /readingPivot/);
 assert.match(runtime, /const SPREAD_COUNT = 5/);
+assert.match(runtime, /BookShelf volume motion/);
+assert.match(runtime, /makeContactShadowTexture/);
+assert.match(runtime, /has-book-hover/);
+assert.match(runtime, /backFill/);
+assert.match(runtime, /spineRake/);
+assert.match(runtime, /setBookTheme/);
+assert.match(runtime, /updateThemeMotion/);
 
 console.log(`Verified original BookShelf runtime and ${runtimeRoles.size} scoped DOM roles.`);
